@@ -7,6 +7,8 @@ from base_ae import BaseAutoEncoder
 class Encoder(nn.Module):
     def __init__(self, features, rates, skip_on):
         super().__init__()
+        assert len(features) == len(rates) + 1 == len(skip_on),"features和skip_on的长度应当比rates大1"
+
         self.conv_list = nn.ModuleList()
         self.latent_svd_list = nn.ModuleList()
         self.pooling_list = nn.ModuleList()
@@ -56,7 +58,7 @@ class Encoder(nn.Module):
         input = self.conv_list[-1](input)
         output_list.append(self.latent_svd_list[-1](input))
 
-        return output_list[::-1]
+        return {"features":output_list[::-1]}
     
 class Decoder(nn.Module):
     def __init__(self, features, rates, skip_on):
@@ -114,6 +116,7 @@ class Decoder(nn.Module):
                 )
 
     def forward(self, output_list):
+        output_list = output_list["features"]
         output_list = output_list[::-1]
         x = output_list.pop()
         x = self.latent_svd_list[0](x)
@@ -132,19 +135,22 @@ class Decoder(nn.Module):
             x = conv_layer(x)
 
         return self.final_output(x)
-    
+
+
 class UNet(BaseAutoEncoder):
-    def __init__(self, model_path,features,rates,skip_on):
-        super().__init__(model_path)
-        self.encoder = Encoder(features=features,rates=rates,skip_on=skip_on)
-        self.decoder = Decoder(features=features,rates=rates,skip_on=skip_on)
-        
-    def encode(self, input):
-        return self.encoder(input)
+    def __init__(self, features,rates,skip_on):
+        super().__init__(Encoder(features=features,rates=rates,skip_on=skip_on),Decoder(features=features,rates=rates,skip_on=skip_on))
+
     
-    def decode(self, latent_features):
-        return self.decoder(latent_features)
-    
-    def forward(self, input):
-        return self.decode(self.encode(input))
+    def forward(self, signal):
+        features = self.encoder(signal)
+        re_signal = self.decoder(features)
+        loss = F.mse_loss(signal, re_signal)
+        return {"re_signal": re_signal,"loss": loss}
+
+if __name__ == "__main__":
+    unet = UNet(features=[16,32,64,128],rates=[2,2,2],skip_on=[True,True,True,True])
+    signal = torch.randn(1, 1, 2048)
+    res = unet(signal)
+    print(res.keys())
     

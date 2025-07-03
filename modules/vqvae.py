@@ -1,7 +1,60 @@
 import torch
 import torch.nn as nn
-from nsvq import NSVQ
 from base_ae import BaseAutoEncoder
+from einops import rearrange, repeat,reduce
+
+class VectorQuantizer(nn.Module):
+    def __init__(self, num_latents: int, latent_dim: int, code_restart: bool = True) -> None:
+        """
+        :param num_latents:码本中向量个数
+        :param latent_dim: 码本中向量唯独
+        :param code_restart: 是否重启码本
+        """
+        super(VectorQuantizer, self).__init__()
+        self.codebook = nn.Embedding(num_latents, latent_dim)
+        self.codebook.weight.data.uniform_(-1.0 / num_latents, 1.0 / num_latents)
+        self.register_buffer("usage", torch.zeros(num_latents), persistent=False)
+        self.num_latents = num_latents
+        self.code_restart = code_restart
+
+    def update_usage(self, min_enc) -> None:
+        for idx in min_enc:
+            self.usage[idx] = self.usage[idx] + 1  # Add used code
+
+    def random_restart(self) -> None:
+        if self.code_restart:
+            # Randomly restart all dead codes
+            dead_codes = torch.nonzero(self.usage < 1).squeeze(1)
+            rand_codes = torch.randperm(self.num_latents)[0:len(dead_codes)]
+            print(f"Restarting {len(dead_codes)} codes")
+            with torch.no_grad():
+                self.codebook.weight[dead_codes] = self.codebook.weight[rand_codes]
+            if hasattr(self, "inner_vq"):
+                self.inner_vq.random_restart()
+            self.reset_usage()
+
+    def reset_usage(self) -> None:
+        if self.code_restart:
+            # Reset usage between epochs
+            self.usage.zero_()
+
+            if hasattr(self, "inner_vq"):
+                self.inner_vq.reset_usage()
+
+    def forward(self, x) :
+        original_x = x  # 保留原始输入 x 以便在返回时传递
+        x_flattened_for_vq = rearrange(x, 'b c l -> (b l) c')
+        distance = torch.cdist(x_flattened_for_vq, self.codebook.weight)  # (B*L, num_latents)
+        indices = torch.argmin(distance, dim=-1)  # (B*L)
+        z = self.codebook(indices)  # (B*L, latent_dim)
+        if not self.training or self.code_restart:
+            self.update_usage(indices)
+        z_q_flattened = x_flattened_for_vq + (z - x_flattened_for_vq).detach()
+        z_q_final = rearrange(z_q_flattened, '(b l) c -> b c l', b=original_x.shape[0])
+        indices_final = rearrange(indices, '(b l) -> b l', b=original_x.shape[0])
+        return z_q_final, original_x, indices_final
+
+
 
 # --- ResNet 残差块模块 ---
 class ResidualBlock1D(nn.Module):
@@ -128,17 +181,8 @@ class VQVAE(nn.Module):
 
 
 if __name__ == "__main__":
-    conv_configs = [(16,4,2,1),(32,4,2,1), (64,4,2,1),(128,4,2,1),(256,4,2,1)]
-    
-    resnet_block_count: int = 2 # 堆叠的 ResNet 块数量
-    resnet_block_channels: int = 256 # 堆叠的 ResNet 块内部通道数
-    resnet_block_kernel_size: int = 3 # 堆叠 ResNet 块的卷积核大小
-    resnet_block_padding: int = 1 # 堆叠 ResNet 块的填充
-    num_embeddings = 16
-    embedding_dim = 32
-    
-    
-    model = VQVAE(conv_configs,resnet_block_count,resnet_block_channels,resnet_block_kernel_size,resnet_block_padding,num_embeddings,embedding_dim,)
-    x = torch.ones([1,1,2048])
-    y = model(x)
-    print(y)
+    model = VectorQuantizer(num_latents=10,latent_dim=20,code_restart=True)
+    model.train()
+    x = torch.randn(1, 20, 100)
+    z_q,z,x,inx = model.forward(x)
+    print(z_q.shape)

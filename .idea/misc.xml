@@ -3,4 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="generate_loss" />
   </component>
+  <component name="ProjectRootManager" version="2" project-jdk-name="nn_loss" project-jdk-type="Python SDK" />
 </project>

@@ -31,7 +31,7 @@ class Encoder(nn.Module):
         )
 
     def forward(self, x):
-        x = self.encoder(x)
+        x = self.encoder_latent(self.encoder(x))
         return {"features":[x]}
 
 class Decoder(nn.Module):
@@ -84,6 +84,12 @@ class CAE(BaseAutoEncoder):
         re_signal = self.decoder(features)
         loss = F.mse_loss(signal, re_signal)
         return {"re_signal": re_signal,"loss": loss}
+
+if __name__ == "__main__":
+    cae = CAE(length=2048,features=[16,32,64],latent_dim=10)
+    signal = torch.randn(1, 1, 2048)
+    res = cae.forward(signal)
+    print(res.keys())
 
 
     
