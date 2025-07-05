@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from base_ae import BaseAutoEncoder
+from .base_ae import BaseAutoEncoder
 
 
 class Encoder(nn.Module):
@@ -138,19 +138,20 @@ class Decoder(nn.Module):
 
 
 class UNet(BaseAutoEncoder):
-    def __init__(self, features,rates,skip_on):
-        super().__init__(Encoder(features=features,rates=rates,skip_on=skip_on),Decoder(features=features,rates=rates,skip_on=skip_on))
+    def __init__(self, unet_features,rates,skip_on,target_length,**kwargs) -> None:
+        super().__init__(Encoder(features=unet_features,rates=rates,skip_on=skip_on),Decoder(features=unet_features,rates=rates,skip_on=skip_on),target_length=target_length)
 
     
     def forward(self, signal):
+        signal = self.padding_signal(signal)
         features = self.encoder(signal)
         re_signal = self.decoder(features)
-        loss = F.mse_loss(signal, re_signal)
+        loss = ((signal - re_signal) ** 2).mean()
         return {"re_signal": re_signal,"loss": loss}
 
 if __name__ == "__main__":
     unet = UNet(features=[16,32,64,128],rates=[2,2,2],skip_on=[True,True,True,True])
     signal = torch.randn(1, 1, 2048)
-    res = unet(signal)
-    print(res.keys())
+    res = unet.encode(signal)
+    print(res["features"][0].shape)
     

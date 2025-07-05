@@ -1,7 +1,5 @@
 import torch.nn as nn
-import torch.nn.functional as F
-
-from base_ae import BaseAutoEncoder
+from .base_ae import BaseAutoEncoder
 import torch
 
 
@@ -48,7 +46,7 @@ class Decoder(nn.Module):
 
         decoder_layers = []
         for i in range(len(features) - 1, 0, -1):
-            in_channels = features[i]      
+            in_channels = features[i]
             out_channels = features[i-1] 
             decoder_layers.append(
                 nn.Sequential(
@@ -75,18 +73,19 @@ class Decoder(nn.Module):
     
 
 class CAE(BaseAutoEncoder):
-    def __init__(self, length,features,latent_dim):
-        super().__init__(Encoder(length=length,features=features,latent_dim=latent_dim),Decoder(length=length,features=features,latent_dim=latent_dim))
+    def __init__(self, cae_features,latent_dim,target_length,**kwargs):
+        super().__init__(Encoder(length=target_length,features=cae_features,latent_dim=latent_dim),Decoder(length=target_length,features=cae_features,latent_dim=latent_dim),target_length)
         
 
     def forward(self,signal):
+        signal = self.padding_signal(signal)
         features = self.encoder(signal)
         re_signal = self.decoder(features)
-        loss = F.mse_loss(signal, re_signal)
+        loss = ((signal - re_signal) ** 2).mean()
         return {"re_signal": re_signal,"loss": loss}
 
 if __name__ == "__main__":
-    cae = CAE(length=2048,features=[16,32,64],latent_dim=10)
+    cae = CAE(target_length=1504,cae_features=[16,32,64],latent_dim=10)
     signal = torch.randn(1, 1, 2048)
     res = cae.forward(signal)
     print(res.keys())
