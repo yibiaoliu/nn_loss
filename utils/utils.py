@@ -71,39 +71,50 @@ def make_train_optimizer(cfg, model):
 
 
 def make_inversion_optimizer(cfg, vp):
-    if cfg.inversion_stage.train.optim == "Adam":
+    if cfg.inversion_stage.optim == "Adam":
         optimizer = torch.optim.Adam(vp.parameters(), lr=cfg.inversion_stage.lr)
-    elif cfg.inversion_stage.train.optim == "SGD":
+    elif cfg.inversion_stage.optim == "SGD":
         optimizer = torch.optim.SGD(vp.parameters(), lr=cfg.inversion_stage.lr)
     return optimizer
 
 
-def train_log(cfg,output):
-    if cfg.generate_par.use_wandb:
-        if cfg.generate_par.type in ["UNet","CAE"]:
-            wandb.log({"train_stage_loss":output["loss"]})
-        elif cfg.generate_par.type == "VQUNet":
-            wandb.log({"train_stage_loss":output["loss"],"train_stage_q_loss":output["q_loss"],"train_stage_commit_loss":output["commit_loss"],"train_stage_mse_loss":output["mse_loss"]})
+def train_log(cfg,epoch_loss):
+    log_path = cfg.generate_par.log_path
+    with h5py.File(log_path,"a") as f:
+        if "train_total_loss" not in f:
+            for key,value in epoch_loss.items():
+                loss = np.array([value])
+                f.create_dataset(f"train_{key}", data=loss, maxshape=(None,))
+        else:
+            for key,value in epoch_loss.items():
+                loss = np.array([value])
+                dset = f[f"train_{key}"]
+                current_rows = dset.shape[0]
+                dset.resize(current_rows + 1, axis=0)
+                dset[current_rows] = loss
+
 
 
 def inversion_log(cfg,vp,epoch_loss):
-    vp_inv_path = cfg.forward_par.vp_inv_path
-    data = np.expand_dims(vp.forward().detach().cpu().numpy(),axis=0)
-    nx = data.shape[1]
-    nz = data.shape[2]
-    with h5py.File(vp_inv_path,"a") as f:
-        if "vp_inv" not in f:
-            begin_data = np.expand_dims(np.load(cfg.forward_par.vp_init_path),axis=0)
-            f.create_dataset("vp_inv", data = begin_data,maxshape=(None,nx,nz))
-        dset = f["vp_inv"]
-        current_rows = dset.shape[0]
-        dset.resize(current_rows + 1, axis=0)
-        dset[current_rows] = data
-
-    if cfg.generate_par.use_wandb:
-        wandb.log({"inv_vp":wandb.Image(vp.forward().detach().cpu().numpy().T)})
-        wandb.log({"inversion_stage_loss":epoch_loss})
-
+    log_path = cfg.generate_par.log_path
+    with h5py.File(log_path,"a") as f:
+        if "inversion_total_loss" not in f:
+            vp_inv = np.expand_dims(vp.forward().detach().cpu().numpy(), axis=0)
+            nx = vp_inv.shape[1]
+            nz = vp_inv.shape[2]
+            loss_data = np.array([epoch_loss])
+            f.create_dataset("inversion_total_loss", data=loss_data, maxshape=(None,))
+            f.create_dataset("vp_inv", data=vp_inv, maxshape=(None, nx, nz))
+        else:
+            vp_inv = np.expand_dims(vp.forward().detach().cpu().numpy(), axis=0)
+            loss_data = np.array([epoch_loss])
+            dset_vp = f["vp_inv"]
+            dset_loss = f["inversion_total_loss"]
+            current_rows = dset_vp.shape[0]
+            dset_vp.resize(current_rows + 1, axis=0)
+            dset_loss.resize(current_rows + 1, axis=0)
+            dset_vp[current_rows] = vp_inv
+            dset_loss[current_rows] = loss_data
 
 
 

@@ -1,29 +1,24 @@
 #========================================================地震模型参数设置=============================================================================
 forward_par:
-  vp_type:                                                                  #速度模型的名字
-  grid_spacing:                                                             #速度模型的空间间隔
-  dt:                                                                       #接收器采样间隔
-  max_vel:                                                                  #速度模型最大速度约束
-  min_vel:                                                                  #速度模型最小速度约束
-  vp_true_path:                                                             #真实速度模型文件路径
-  vp_init_path:                                                             #初始速度模型文件路径
-  vp_inv_path:                                                              #反演速度模型文件路径
+  vp_type: "Marmousi"                                                                  #速度模型的名字
+  grid_spacing: 15                                                              #速度模型的空间间隔
+  dt: 0.0035                                                                       #接收器采样间隔
+  max_vel: 4700                                                                   #速度模型最大速度约束
+  min_vel: 1000                                                                   #速度模型最小速度约束
+  vp_true_path: "/home/yibiao/Downloads/marmousi/vp_true.npy"                                                             #真实速度模型文件路径
+  vp_init_path: "/home/yibiao/Downloads/marmousi/vp_init.npy"                                                            #初始速度模型文件路径
 
-  src_loc_path:                                                             #发射器位置的文件路径
-  rec_loc_path:                                                             #接收器位置的文件路径
-  wavelet_path:                                                             #震源子波的文件路径
-  pml_width:                                                                #吸收边界宽度设置,[nx_begin.nx_end,nz_begin,nz_end]
-  pml_freq:                                                                 #吸收边界频率设置
-  accuracy:                                                                 #正演精度设置
-  syn_signal_dir:                                                           #反演地震数据文件路径
+  src_loc_path: "/home/yibiao/Downloads/marmousi/src_loc.npy"                                                             #发射器位置的文件路径
+  rec_loc_path: "/home/yibiao/Downloads/marmousi/rec_loc.npy"                                                            #接收器位置的文件路径
+  wavelet_path: "/home/yibiao/Downloads/marmousi/wavelet.npy"                                                            #震源子波的文件路径
+  pml_width: [10,10,10,10]                                                                #吸收边界宽度设置,[nx_begin.nx_end,nz_begin,nz_end]
+  syn_signal_dir: "/home/yibiao/Downloads/marmousi/log/syn_signal.npy"                                                           #反演地震数据文件路径
 
 #===========================================================两阶段通用参数设置======================================================================================================
 generate_par:
-  type:                                                                      #使用的方法，{FWI,UNet,CAE,VQUNet}中的一个
-  obs_signal_path:                                                           #观测地震数据文件路径
-  use_wandb: True                                                            #使用wandb记录中间信息
-  project_name: "nn_loss"                                                    #wandb项目名称
-  task_name: "train_stage"                                                   #wandb任务名称
+  type: "FWI"                                                                      #使用的方法，{FWI,UNet,CAE,VQUNet}中的一个
+  obs_signal_path: "/home/yibiao/Downloads/marmousi/obs_signal.npy"                                                           #观测地震数据文件路径
+  log_path: "/home/yibiao/Downloads/marmousi/log/mid_val.hdf5"                                                                 #训练或者反演阶段的过程hdf5文件
 
 #===========================================================训练阶段参数设置===========================================================================================
 train_stage:
@@ -33,9 +28,9 @@ train_stage:
     cae_features: [16,32,64,128]                                             #CAE通道特征
     latent_dim: 10                                                           #CAE提取信号维度
 
-    unet_features: [16,32,64,128]                                            #UNet与VQUNet通道特征
-    rates: [2,2,2]                                                           #下采样倍率设置
-    skip_on: [True,True,True,True]                                           #跳跃连接设置，从浅层到高层
+    unet_features: [16,32,64,128,256]                                            #UNet与VQUNet通道特征
+    rates: [2,2,2,2]                                                           #下采样倍率设置
+    skip_on: [False,True,True,True,True]                                           #跳跃连接设置，从浅层到高层
     beta: 0.25                                                               #VQUNet中控制码本训练的超参数
     num_codebook: 32                                                         #码本中向量数量
     codebook_dim: 128                                                        #码本中向量维度
@@ -43,18 +38,18 @@ train_stage:
   train:
     lr: 1e-3                                                                  #训练阶段学习率
     optim: "Adam"                                                             #训练阶段优化器
-    epochs: 10                                                                #训练阶段迭代次数
-    batch_size: 64                                                            #训练阶段批次大小
-    checkpoint_path: "./train_stage/logs/test.pt"                             #保存模型的文件路径
+    epochs: 500                                                                #训练阶段迭代次数
+    batch_size: 256                                                            #训练阶段批次大小
+    checkpoint_path: "/home/yibiao/Downloads/marmousi/log/model.pt"                              #保存模型的文件路径
 
 
 #===============================================================反演阶段参数设置======================================================================================================
 inversion_stage:
-  lr:                                                                         #反演阶段学习率
-  optim: str                                                                  #反演阶段优化器
-  epochs:                                                                      #反演阶段迭代次数
-  batch_size:                                                                 #反演阶段的batch_source]
-  shuffle:                                                                    #是否打乱发射器，接收器，地震子波的顺序
+  lr: 1e-3                                                                         #反演阶段学习率
+  optim: "Adam"                                                                  #反演阶段优化器
+  epochs: 200                                                                      #反演阶段迭代次数
+  batch_size: 1                                                                 #反演阶段的batch_source]
+  shuffle: True                                                                    #是否打乱发射器，接收器，地震子波的顺序
 
 
 

@@ -1,5 +1,10 @@
+import os
+import sys
+cur_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(cur_dir)
+sys.path.insert(0, project_root)
 import torch
-import wandb
+from tqdm import tqdm
 import argparse
 from omegaconf import OmegaConf
 from utils import make_train_dataloader,make_model,make_train_optimizer,train_log
@@ -10,14 +15,6 @@ args,unknown_args = parser.parse_known_args()
 cfg = OmegaConf.merge(OmegaConf.load(args.config), OmegaConf.from_cli(unknown_args))
 
 
-if cfg.generate_par.use_wandb:
-    wandb.init(project=cfg.generate_par.project_name, group=cfg.generate_par.task_name,
-               config={"method_type":cfg.generate_par.type,
-                       "vp_type":cfg.forward_par.vp_type,
-                       "task_name":cfg.generate_par.task_name,
-                       "lr":cfg.train_stage.train.lr,
-                       "epochs":cfg.train_stage.train.epochs,
-                       "batch_size":cfg.train_stage.train.batch_size,})
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -26,15 +23,21 @@ def train(cfg):
         return
     dataloader = make_train_dataloader(cfg)
     model = make_model(cfg)
+    model.train()
     optimizer = make_train_optimizer(cfg,model)
-    for epoch in range(cfg.train_stage.train.epochs):
-        model.train()
+    for epoch in tqdm(range(cfg.train_stage.train.epochs)):
+        epoch_loss = {"total_loss": 0.0,"q_loss": 0.0,"commit_loss": 0.0,"mse_loss": 0.0}
+        num_batch = 0
         for signal in dataloader:
             output = model.forward(signal.to(device))
-            train_log(cfg,output)
             loss = output["loss"]
+            epoch_loss["total_loss"] += loss.item()
+            epoch_loss["q_loss"] += output["q_loss"].item() if "q_loss" in output else 0
+            epoch_loss["commit_loss"] += output["commit_loss"].item() if "commit_loss" in output else 0
+            epoch_loss["mse_loss"] += output["mse_loss"].item() if "mse_loss" in output else 0
             optimizer.zero_grad()
             loss.backward()
+        train_log(cfg, epoch_loss)
     model.save_model(cfg.train_stage.train.checkpoint_path)
 
 if __name__ == "__main__":
