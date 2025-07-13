@@ -1,10 +1,10 @@
+from pathlib import Path
 import torch
-import wandb
 import h5py
 import numpy as np
 from torch.utils.data import DataLoader
-from train_stage.modules import UNet,VQUNet,CAE,FWI
-from train_stage.dataset import TrainDataset,InversionDataset
+from modules import UNet,VQUNet,CAE,FWI
+from data.dataset import TrainDataset,InversionDataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -57,7 +57,7 @@ def make_and_load_model(cfg):
         model.eval()
         return model.to(device)
     else:
-        model.load_model(cfg.train_stage.train.checkpoint_path)
+        model.load_model(cfg.generate_par.checkpoint_path)
         model.eval()
         return model.to(device)
 
@@ -79,8 +79,9 @@ def make_inversion_optimizer(cfg, vp):
 
 
 def train_log(cfg,epoch_loss):
-    log_path = cfg.generate_par.log_path
-    with h5py.File(log_path,"a") as f:
+    train_log_path = Path(cfg.generate_par.train_log_path)
+    train_log_path.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(train_log_path,"a") as f:
         if "train_total_loss" not in f:
             for key,value in epoch_loss.items():
                 loss = np.array([value])
@@ -96,8 +97,9 @@ def train_log(cfg,epoch_loss):
 
 
 def inversion_log(cfg,vp,epoch_loss):
-    log_path = cfg.generate_par.log_path
-    with h5py.File(log_path,"a") as f:
+    inversion_log_path = Path(cfg.generate_par.inversion_log_path)
+    inversion_log_path.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(inversion_log_path,"a") as f:
         if "inversion_total_loss" not in f:
             vp_inv = np.expand_dims(vp.forward().detach().cpu().numpy(), axis=0)
             nx = vp_inv.shape[1]

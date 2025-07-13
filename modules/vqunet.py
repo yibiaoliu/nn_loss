@@ -1,7 +1,6 @@
-import torch.nn.functional as F
 import torch
 import torch.nn as nn
-from .base_ae import BaseAutoEncoder
+from .base_ae import   BaseAutoEncoder
 from einops import rearrange
 
 
@@ -17,28 +16,21 @@ class VectorQuantizer(nn.Module):
         self.codebook.weight.data.uniform_(-1.0 / num_latents, 1.0 / num_latents)
         self.register_buffer("usage", torch.zeros(num_latents), persistent=False)
         self.num_latents = num_latents
-        self.forward_reset = 50
+        self.forward_reset = 100
         self.cur_reset = 0
 
     def update_usage(self, min_enc) -> None:
-        for idx in min_enc:
-            self.usage[idx] = self.usage[idx] + 1
+        self.usage += torch.bincount(min_enc.flatten(), minlength=self.num_latents)
 
     def reset_usage(self) -> None:
         self.usage.zero_()
-        if hasattr(self, "inner_vq"):
-            self.inner_vq.reset_usage()
 
 
     def random_restart(self) -> None:
-            # Randomly restart all dead codes
-        dead_codes = torch.nonzero(self.usage / torch.sum(self.usage) < 0.05).squeeze(1)
+        dead_codes = torch.nonzero(self.usage / torch.sum(self.usage) < 0.01).squeeze(1)
         rand_codes = torch.randperm(self.num_latents)[0:len(dead_codes)]
-        print(f"Restarting {len(dead_codes)} codes")
         with torch.no_grad():
             self.codebook.weight[dead_codes] = self.codebook.weight[rand_codes]
-        if hasattr(self, "inner_vq"):
-            self.inner_vq.random_restart()
         self.reset_usage()
         self.cur_reset = 0
 
@@ -46,7 +38,7 @@ class VectorQuantizer(nn.Module):
         # 码本随机化，防止死码
         if self.training and self.cur_reset % self.forward_reset == 0:
             self.random_restart()
-        original_x = x  # 保留原始输入 x 以便在返回时传递
+        original_x = x
         x_flattened_for_vq = rearrange(x, 'b c l -> (b l) c')
         distance = torch.cdist(x_flattened_for_vq, self.codebook.weight)  # (B*L, num_latents)
         indices = torch.argmin(distance, dim=-1)
@@ -212,7 +204,7 @@ class VQUNet(BaseAutoEncoder):
     def forward(self,signal):
         signal = self.padding_signal(signal)
         features_dict = self.encoder(signal)
-        re_signal = self.decoder(features_dict["features"])
+        re_signal = self.decoder(features_dict)
         z = torch.cat(features_dict["codebook_vec"],dim=2)
         x = torch.cat(features_dict["original_vec"],dim=2)
         mse_loss = ((signal - re_signal) ** 2).mean()
@@ -224,10 +216,10 @@ class VQUNet(BaseAutoEncoder):
 
 
 if __name__ == "__main__":
-    encoder = Encoder(features=[16,32,64,128],rates=[2,2,2],skip_on=[True,True,True,True],num_latents=48,latent_dim=32)
-    decoder = Decoder(features=[16,32,64,128],rates=[2,2,2],skip_on=[True,True,True,True],latent_dim=32)
-    signal = torch.randn((16,1,2048))
-    print(decoder(encoder(signal)).shape)
+    model = VQUNet([8,16,32,64,128],[4,2,2,2],[False,True,True,True,True],16,32,0.25,2048)
+    signal = torch.zeros([1,1,2048])
+    print(model.encode(signal)["features"][0].shape)
+
 
 
 

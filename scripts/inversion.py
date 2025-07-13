@@ -5,6 +5,7 @@ from einops import rearrange
 from omegaconf import OmegaConf
 import os
 import sys
+from tqdm import tqdm
 cur_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(cur_dir)
 sys.path.insert(0, project_root)
@@ -20,8 +21,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def norm_data(obs_signal,syn_signal):
-    obs_signal_max = torch.argmax(torch.abs(obs_signal),keepdim=True)
-    syn_signal_max = torch.argmax(torch.abs(syn_signal),keepdim=True)
+    obs_signal_max = torch.max(torch.abs(obs_signal))
+    syn_signal_max = torch.max(torch.abs(syn_signal))
     obs_signal = obs_signal / obs_signal_max
     syn_signal = syn_signal / syn_signal_max
     return obs_signal,syn_signal
@@ -37,7 +38,7 @@ def inversion(cfg):
 
     # 开始反演
     for stage in range(n_stage):
-        for epoch in range(cfg.inversion_stage.epochs):
+        for epoch in tqdm(range(cfg.inversion_stage.epochs)):
             num_batch = 0
             epoch_loss = 0
             for src_loc,rec_loc,wavelet,obs_signal in dataloader:
@@ -49,13 +50,12 @@ def inversion(cfg):
                 syn_signal = deepwave.scalar(vp.forward(), source_amplitudes=wavelet,source_locations=src_loc,receiver_locations=rec_loc,grid_spacing=cfg.forward_par.grid_spacing,
                                 dt=cfg.forward_par.dt, max_vel=cfg.forward_par.max_vel,
                                 pml_width=OmegaConf.to_object(cfg.forward_par.pml_width))[-1]
-                # obs_signal,syn_signal = norm_data(obs_signal,syn_signal)
+                obs_signal,syn_signal = norm_data(obs_signal,syn_signal)
                 obs_signal = rearrange(obs_signal,'s r t -> (s r) 1 t')
                 syn_signal = rearrange(syn_signal,'s r t -> (s r) 1 t')
                 obs_features = model.encode(obs_signal)["features"][stage]
                 syn_features = model.encode(syn_signal)["features"][stage]
                 loss = ((syn_features - obs_features) ** 2).mean()
-                print(loss)
                 epoch_loss += loss.item()
                 optimizer.zero_grad()
                 loss.backward()

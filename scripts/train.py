@@ -27,7 +27,6 @@ def train(cfg):
     optimizer = make_train_optimizer(cfg,model)
     for epoch in tqdm(range(cfg.train_stage.train.epochs)):
         epoch_loss = {"total_loss": 0.0,"q_loss": 0.0,"commit_loss": 0.0,"mse_loss": 0.0}
-        num_batch = 0
         for signal in dataloader:
             output = model.forward(signal.to(device))
             loss = output["loss"]
@@ -37,8 +36,9 @@ def train(cfg):
             epoch_loss["mse_loss"] += output["mse_loss"].item() if "mse_loss" in output else 0
             optimizer.zero_grad()
             loss.backward()
+            optimizer.step()
         train_log(cfg, epoch_loss)
-    model.save_model(cfg.train_stage.train.checkpoint_path)
+    model.save_model(cfg.generate_par.checkpoint_path)
 
 if __name__ == "__main__":
     train(cfg)
