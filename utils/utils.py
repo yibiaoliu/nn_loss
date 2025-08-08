@@ -3,7 +3,7 @@ import torch
 import h5py
 import numpy as np
 from torch.utils.data import DataLoader
-from modules import UNet,VQUNet,CAE,FWI
+from modules import UNet,CAE,FWI
 from data.dataset import TrainDataset,InversionDataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -27,7 +27,7 @@ def make_vp(cfg):
 
 
 def make_train_dataloader(cfg):
-    dataset = TrainDataset(cfg.generate_par.obs_signal_path)
+    dataset = TrainDataset(cfg.generate_par.obs_signal_path,cfg.generate_par.data_norm)
     dataloader = DataLoader(dataset,batch_size=cfg.train_stage.train.batch_size,shuffle=True)
     return dataloader
 
@@ -41,8 +41,6 @@ def make_inversion_dataloader(cfg):
 def make_model(cfg):
     if cfg.generate_par.type == "UNet":
         cls = UNet
-    elif cfg.generate_par.type == "VQUNet":
-        cls = VQUNet
     elif cfg.generate_par.type == "CAE":
         cls = CAE
     elif cfg.generate_par.type == "FWI":

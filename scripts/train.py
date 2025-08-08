@@ -26,14 +26,11 @@ def train(cfg):
     model.train()
     optimizer = make_train_optimizer(cfg,model)
     for epoch in tqdm(range(cfg.train_stage.train.epochs)):
-        epoch_loss = {"total_loss": 0.0,"q_loss": 0.0,"commit_loss": 0.0,"mse_loss": 0.0}
+        epoch_loss = {"total_loss": 0.0,}
         for signal in dataloader:
             output = model.forward(signal.to(device))
             loss = output["loss"]
             epoch_loss["total_loss"] += loss.item()
-            epoch_loss["q_loss"] += output["q_loss"].item() if "q_loss" in output else 0
-            epoch_loss["commit_loss"] += output["commit_loss"].item() if "commit_loss" in output else 0
-            epoch_loss["mse_loss"] += output["mse_loss"].item() if "mse_loss" in output else 0
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
