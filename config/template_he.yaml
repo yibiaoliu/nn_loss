@@ -1,0 +1,61 @@
+#========================================================地震模型参数设置=============================================================================
+forward_par:
+  vp_type: "He"                                                                  #速度模型的名字
+  grid_spacing: 50                                                              #速度模型的空间间隔
+  dt: 0.002                                                                       #接收器采样间隔
+  max_vel: 6700                                                                   #速度模型最大速度约束
+  min_vel: 1400                                                                   #速度模型最小速度约束
+  pml_width: [10,10,10,10]                                                         #吸收边界宽度设置,[nx_begin.nx_end,nz_begin,nz_end]
+
+  vp_true_path: "/data/yibiao/nn_loss/experiments/he/vp_true.npy"                                                             #真实速度模型文件路径
+  vp_init_path: "/data/yibiao/nn_loss/experiments/he/vp_init.npy"                                                            #初始速度模型文件路径
+  src_loc_path: "/data/yibiao/nn_loss/experiments/he/src_loc.npy"                                                             #发射器位置的文件路径
+  rec_loc_path: "/data/yibiao/nn_loss/experiments/he/rec_loc.npy"                                                            #接收器位置的文件路径
+  wavelet_path: "/data/yibiao/nn_loss/experiments/he/wavelet.npy"                                                            #震源子波的文件路径径
+
+#===========================================================两阶段通用参数设置======================================================================================================
+generate_par:
+  type: "UNet"                                                                      #使用的方法，{FWI,UNet,CAE}中的一个
+  data_norm: 'shot_norm'                                                            #{None,"shot_norm",'receiver_norm'}
+  obs_signal_path: "/data/yibiao/nn_loss/experiments/he/obs_signal.npy"                                                           #观测地震数据文件路径
+  syn_signal_dir: "/data/yibiao/nn_loss/experiments/he/log/syn_signal.npy"                                                           #反演地震数据文件路径
+
+  train_log_path: "/data/yibiao/nn_loss/experiments/he/log/train_unet.hdf5"                                                                 #训练阶段的过程hdf5文件
+  inversion_log_path: "/data/yibiao/nn_loss/experiments/he/log/inversion_unet.hdf5"                                                        #反演阶段的过程hdf5文件
+  checkpoint_path: "/data/yibiao/nn_loss/experiments/he/log/model_unet.pt"                              #保存模型的文件路径
+
+#===========================================================训练阶段参数设置===========================================================================================
+train_stage:
+  model:
+    target_length: 4096                                                      #填充到多少长度
+
+    cae_features: [16,32,64,128]                                             #CAE通道特征
+    latent_dim: 1                                                           #CAE提取信号维度
+
+    unet_features: [4,8,16,32,64]                                            #UNet与VQUNet通道特征
+    rates: [2,2,2,2]                                                           #下采样倍率设置
+    skip_on: [True,True,True,True,True]                                           #跳跃连接设置，从浅层到高层
+    model_norm: 'batch'                                                            #是否加入Batchnorm[None,'batch']
+
+  train:
+    lr: 1e-4                                                                  #训练阶段学习率
+    optim: "Adam"                                                             #训练阶段优化器
+    epochs: 1000                                                                #训练阶段迭代次数
+    batch_size: 256                                                            #训练阶段批次大小
+
+
+#===============================================================反演阶段参数设置======================================================================================================
+inversion_stage:
+  lr: 1e-2                                                                         #反演阶段学习率
+  optim: "Adam"                                                                  #反演阶段优化器
+  epochs: 500                                                                      #反演阶段迭代次数
+  batch_size: 4                                                                 #反演阶段的batch_source]
+  shuffle: True                                                                    #是否打乱发射器，接收器，地震子波的顺序
+
+
+
+
+
+
+
+

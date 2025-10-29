@@ -21,14 +21,13 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def norm_data(signal,data_norm):
-    if data_norm is None:
-        return  signal
-    elif data_norm == "shot_norm":
+    if data_norm == "shot_norm":
         return signal / (torch.max(torch.abs(signal)) + 1e-5)
     elif data_norm == "receiver_norm":
         max_val, _ = torch.max(torch.abs(signal), dim=-1, keepdim=True)
         return signal / (max_val + 1e-5)
-
+    else:
+        return signal
 
 def inversion(cfg):
     #导入基本设置
@@ -53,9 +52,8 @@ def inversion(cfg):
                 syn_signal = deepwave.scalar(vp.forward(), source_amplitudes=wavelet,source_locations=src_loc,receiver_locations=rec_loc,grid_spacing=cfg.forward_par.grid_spacing,
                                 dt=cfg.forward_par.dt, max_vel=cfg.forward_par.max_vel,
                                 pml_width=OmegaConf.to_object(cfg.forward_par.pml_width))[-1]
-
-                obs_signal = norm_data(obs_signal,cfg.forward_par.data_norm)
-                syn_signal = norm_data(syn_signal,cfg.forward_par.data_norm)
+                obs_signal = norm_data(obs_signal,cfg.generate_par.data_norm)
+                syn_signal = norm_data(syn_signal,cfg.generate_par.data_norm)
                 obs_signal = rearrange(obs_signal,'s r t -> (s r) 1 t')
                 syn_signal = rearrange(syn_signal,'s r t -> (s r) 1 t')
                 obs_features = model.encode(obs_signal)["features"][stage]
